@@ -174,12 +174,6 @@ Possible future improvements include:
 * Automated tests
 * Additional accessibility improvements
 
-## 📄 License
-
-This project is distributed under the **MIT License**.
-
-See the `LICENSE` file for more information.
-
 ## 📌 Project Status
 
 **Finished (open to improvements and suggestions)**
