@@ -166,13 +166,6 @@ def format_expression_italian(expression):
     """
     Formatta i numeri presenti nell'espressione
     usando la notazione italiana.
-
-    Esempi:
-
-        1000000       -> 1.000.000
-        3.            -> 3,
-        3.14          -> 3,14
-        1000000+3.14  -> 1.000.000+3,14
     """
 
     def replace_number(match):
@@ -180,13 +173,6 @@ def format_expression_italian(expression):
         number = match.group(0)
 
         return format_number_italian(number)
-
-    # IMPORTANTE:
-    # \d* permette anche zero cifre dopo il punto.
-    #
-    # Quindi:
-    # 3.   viene riconosciuto
-    # 3.14 viene riconosciuto
 
     return re.sub(
         r"-?\d+(?:\.\d*)?",
@@ -221,13 +207,6 @@ class CalculatorApp:
         # ----------------------------------------------------
         # Variabili
         # ----------------------------------------------------
-
-        # Espressione interna.
-        #
-        # Esempi:
-        # 3.14
-        # 1000000
-        # 1000000+3.14
 
         self.expression = ""
 
@@ -472,10 +451,6 @@ class CalculatorApp:
 
             for value in values:
 
-                # -------------------------------------------
-                # Colore
-                # -------------------------------------------
-
                 if value == "=":
 
                     color = "#4c8bf5"
@@ -502,18 +477,7 @@ class CalculatorApp:
 
                     color = "#202020"
 
-                # -------------------------------------------
-                # Larghezza
-                # -------------------------------------------
-
-                colspan = 1
-
-                if value == "=":
-                    colspan = 2
-
-                # -------------------------------------------
-                # Pulsante
-                # -------------------------------------------
+                colspan = 2 if value == "=" else 1
 
                 button = tk.Button(
                     buttons_frame,
@@ -542,10 +506,7 @@ class CalculatorApp:
 
                 col += colspan
 
-        # ====================================================
-        # DIMENSIONAMENTO
-        # ====================================================
-
+        # Dimensionamento
         for i in range(4):
 
             buttons_frame.columnconfigure(
@@ -591,6 +552,35 @@ class CalculatorApp:
             tk.END
         )
 
+    def add_to_history(self, expression, result):
+
+        expression_display = (
+            format_expression_italian(
+                expression
+            )
+        )
+
+        result_display = (
+            format_number_italian(
+                result
+            )
+        )
+
+        history_entry = (
+            f"{expression_display} = "
+            f"{result_display}"
+        )
+
+        self.history.insert(
+            0,
+            history_entry
+        )
+
+        # Massimo 20 operazioni
+        if self.history.size() > 20:
+
+            self.history.delete(20)
+
     # ========================================================
     # DISPLAY
     # ========================================================
@@ -613,80 +603,42 @@ class CalculatorApp:
 
     def button_click(self, value):
 
-        # ----------------------------------------------------
-        # Cancella tutto
-        # ----------------------------------------------------
-
         if value == "C":
 
             self.clear()
-
             return
-
-        # ----------------------------------------------------
-        # Backspace
-        # ----------------------------------------------------
 
         if value == "⌫":
 
             self.delete_last()
-
             return
-
-        # ----------------------------------------------------
-        # Calcolo
-        # ----------------------------------------------------
 
         if value == "=":
 
             self.calculate()
-
             return
-
-        # ----------------------------------------------------
-        # Percentuale
-        # ----------------------------------------------------
 
         if value == "%":
 
             self.percent()
-
             return
-
-        # ----------------------------------------------------
-        # Esponente
-        # ----------------------------------------------------
 
         if value == "xʸ":
 
             self.add_operator("^")
-
             return
-
-        # ----------------------------------------------------
-        # Cambio segno
-        # ----------------------------------------------------
 
         if value == "±":
 
             self.change_sign()
-
             return
-
-        # ----------------------------------------------------
-        # Separatore decimale
-        # ----------------------------------------------------
 
         if value == ",":
 
             self.add_decimal()
-
             return
 
-        # ----------------------------------------------------
         # Dopo un risultato
-        # ----------------------------------------------------
-
         if self.result_shown:
 
             if value in [
@@ -702,12 +654,7 @@ class CalculatorApp:
             else:
 
                 self.expression = ""
-
                 self.result_shown = False
-
-        # ----------------------------------------------------
-        # Aggiungi carattere
-        # ----------------------------------------------------
 
         self.expression += value
 
@@ -719,24 +666,13 @@ class CalculatorApp:
 
     def add_decimal(self):
 
-        # Trova il numero corrente
         current_number = re.split(
             r"[+\-×÷^()]",
             self.expression
         )[-1]
 
-        # Evita due separatori decimali
         if "." in current_number:
             return
-
-        # Se siamo all'inizio o dopo un operatore,
-        # inseriamo 0.
-        #
-        # Internamente:
-        # 0.
-        #
-        # Visivamente:
-        # 0,
 
         if not current_number:
 
@@ -757,7 +693,6 @@ class CalculatorApp:
         if not self.expression:
             return
 
-        # Evita due operatori consecutivi
         if self.expression[-1] in "+-×÷^":
 
             self.expression = (
@@ -774,6 +709,173 @@ class CalculatorApp:
         self.update_display()
 
     # ========================================================
+    # PERCENTUALE
+    # ========================================================
+
+    def percent(self):
+
+        if not self.expression:
+            return
+
+        try:
+
+            original_expression = self.expression
+
+            # ------------------------------------------------
+            # ESPRESSIONE SEMPLICE
+            #
+            # 2% -> 0,02
+            # ------------------------------------------------
+
+            if not re.search(
+                r"[+\-×÷]",
+                self.expression
+            ):
+
+                value = safe_eval(
+                    self.expression
+                )
+
+                result = value / 100
+
+                self.expression = str(result)
+
+                self.add_to_history(
+                    original_expression + "%",
+                    result
+                )
+
+                self.update_display()
+
+                self.result_shown = True
+
+                return
+
+            # ------------------------------------------------
+            # OPERAZIONE CONTESTUALE
+            #
+            # 22-2%
+            # 22+2%
+            # 22×2%
+            # 22÷2%
+            # ------------------------------------------------
+
+            match = re.match(
+                r"^(.*?)([+\-×÷])(-?\d+(?:\.\d*)?)$",
+                self.expression
+            )
+
+            if not match:
+                raise ValueError()
+
+            left_expression = match.group(1)
+
+            operation = match.group(2)
+
+            right_expression = match.group(3)
+
+            # Valore a sinistra
+            base = safe_eval(
+                left_expression
+            )
+
+            # Percentuale
+            percentage = safe_eval(
+                right_expression
+            )
+
+            # ------------------------------------------------
+            # Calcola il valore percentuale
+            # ------------------------------------------------
+
+            percent_value = (
+                base * percentage / 100
+            )
+
+            # ------------------------------------------------
+            # SOMMA
+            # ------------------------------------------------
+
+            if operation == "+":
+
+                result = (
+                    base + percent_value
+                )
+
+            # ------------------------------------------------
+            # SOTTRAZIONE
+            # ------------------------------------------------
+
+            elif operation == "-":
+
+                result = (
+                    base - percent_value
+                )
+
+            # ------------------------------------------------
+            # MOLTIPLICAZIONE
+            # ------------------------------------------------
+
+            elif operation == "×":
+
+                result = (
+                    base * percentage / 100
+                )
+
+            # ------------------------------------------------
+            # DIVISIONE
+            # ------------------------------------------------
+
+            elif operation == "÷":
+
+                result = (
+                    base / (percentage / 100)
+                )
+
+            else:
+
+                raise ValueError()
+
+            # Evita 22.0
+            if (
+                isinstance(result, float)
+                and result.is_integer()
+            ):
+
+                result = int(result)
+
+            # ------------------------------------------------
+            # CRONOLOGIA
+            # ------------------------------------------------
+
+            self.add_to_history(
+                original_expression + "%",
+                result
+            )
+
+            # ------------------------------------------------
+            # Risultato
+            # ------------------------------------------------
+
+            self.expression = str(result)
+
+            self.update_display()
+
+            self.result_shown = True
+
+        except ZeroDivisionError:
+
+            self.show_error(
+                "Non puoi dividere per zero."
+            )
+
+        except Exception:
+
+            self.show_error(
+                "Percentuale non valida."
+            )
+
+    # ========================================================
     # CALCOLO
     # ========================================================
 
@@ -784,14 +886,13 @@ class CalculatorApp:
 
         try:
 
+            original_expression = self.expression
+
             result = safe_eval(
                 self.expression
             )
 
-            # ------------------------------------------------
-            # Evita 10.0 e mostra 10
-            # ------------------------------------------------
-
+            # Evita 10.0
             if (
                 isinstance(result, float)
                 and result.is_integer()
@@ -803,31 +904,10 @@ class CalculatorApp:
             # Cronologia
             # ------------------------------------------------
 
-            expression_display = (
-                format_expression_italian(
-                    self.expression
-                )
+            self.add_to_history(
+                original_expression,
+                result
             )
-
-            result_display = (
-                format_number_italian(
-                    result
-                )
-            )
-
-            history_entry = (
-                f"{expression_display} = "
-                f"{result_display}"
-            )
-
-            self.history.insert(
-                0,
-                history_entry
-            )
-
-            if self.history.size() > 20:
-
-                self.history.delete(20)
 
             # ------------------------------------------------
             # Risultato
@@ -849,33 +929,6 @@ class CalculatorApp:
 
             self.show_error(
                 "Espressione non valida."
-            )
-
-    # ========================================================
-    # PERCENTUALE
-    # ========================================================
-
-    def percent(self):
-
-        if not self.expression:
-            return
-
-        try:
-
-            result = safe_eval(
-                self.expression
-            )
-
-            result = result / 100
-
-            self.expression = str(result)
-
-            self.update_display()
-
-        except Exception:
-
-            self.show_error(
-                "Percentuale non valida."
             )
 
     # ========================================================
@@ -961,24 +1014,9 @@ class CalculatorApp:
         char = event.char
         keycode = event.keycode
 
-        # ====================================================
-        # TASTIERINO NUMERICO WINDOWS
-        # ====================================================
-        #
-        # 96  = 0
-        # 97  = 1
-        # 98  = 2
-        # 99  = 3
-        # 100 = 4
-        # 101 = 5
-        # 102 = 6
-        # 103 = 7
-        # 104 = 8
-        # 105 = 9
-        #
-        # Funziona con Bloc Num attivo e disattivo.
-        #
-        # ====================================================
+        # ----------------------------------------------------
+        # TASTIERINO NUMERICO
+        # ----------------------------------------------------
 
         keypad_numbers = {
             96: "0",
@@ -1001,9 +1039,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # INVIO
-        # ====================================================
+        # ----------------------------------------------------
 
         if key in (
             "Return",
@@ -1014,9 +1052,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # BACKSPACE
-        # ====================================================
+        # ----------------------------------------------------
 
         if key == "BackSpace":
 
@@ -1024,9 +1062,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # ESC
-        # ====================================================
+        # ----------------------------------------------------
 
         if key == "Escape":
 
@@ -1034,9 +1072,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
-        # NUMERI TASTIERA NORMALE
-        # ====================================================
+        # ----------------------------------------------------
+        # NUMERI NORMALI
+        # ----------------------------------------------------
 
         if char in "0123456789":
 
@@ -1044,9 +1082,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # DECIMALE
-        # ====================================================
+        # ----------------------------------------------------
 
         if (
             char in ".,"
@@ -1059,9 +1097,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # SOMMA
-        # ====================================================
+        # ----------------------------------------------------
 
         if (
             char == "+"
@@ -1072,9 +1110,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # SOTTRAZIONE
-        # ====================================================
+        # ----------------------------------------------------
 
         if (
             char == "-"
@@ -1085,9 +1123,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # MOLTIPLICAZIONE
-        # ====================================================
+        # ----------------------------------------------------
 
         if (
             char == "*"
@@ -1098,9 +1136,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # DIVISIONE
-        # ====================================================
+        # ----------------------------------------------------
 
         if (
             char == "/"
@@ -1111,9 +1149,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # ESPONENTE
-        # ====================================================
+        # ----------------------------------------------------
 
         if char == "^":
 
@@ -1121,9 +1159,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # PARENTESI APERTA
-        # ====================================================
+        # ----------------------------------------------------
 
         if char == "(":
 
@@ -1131,9 +1169,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # PARENTESI CHIUSA
-        # ====================================================
+        # ----------------------------------------------------
 
         if char == ")":
 
@@ -1141,9 +1179,9 @@ class CalculatorApp:
 
             return "break"
 
-        # ====================================================
+        # ----------------------------------------------------
         # PERCENTUALE
-        # ====================================================
+        # ----------------------------------------------------
 
         if char == "%":
 
